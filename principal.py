@@ -24,30 +24,29 @@ class Analisis:
     def get_rsi(self):
         """
         Calcula el rsi de 14 días del dataframe df
+        Fuentes:
+            https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/overlap/rma.py
+            https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/momentum/rsi.py
+            https://www.tradingview.com/wiki/Relative_Strength_Index_(RSI)
+            https://tlc.thinkorswim.com/center/reference/Tech-Indicators/studies-library/V-Z/WildersSmoothing
+            https://www.incrediblecharts.com/indicators/wilder_moving_average.php
         """
-        import pdb; pdb.set_trace()
         data=self.close
-        rsi=[]
         interval=14# 14 days
-        for i in range(interval,self.close.size):
-            data_14=data[i-interval:i]
-            diferencia=data_14.diff()
-            positivos=copy(diferencia)
-            positivos.loc[diferencia<0]=0
+        diferencia=data.diff()
+        positivos=copy(diferencia)
+        positivos.loc[diferencia<0]=0
 
-            negativos=copy(diferencia)
-            negativos.loc[diferencia>0]=0
-            negativos=abs(negativos)
+        negativos=copy(diferencia)
+        negativos.loc[diferencia>0]=0
+        negativos=abs(negativos)
 
-            positivos=positivos.ewm(alpha=1/interval,adjust=True).mean()
-            negativos=negativos.ewm(alpha=1/interval,adjust=True).mean()
-            
-            rsi.append(100-100/(1+positivos[-1]/negativos[-1]))
-            
+        positivos=positivos.ewm(alpha=1/interval,min_periods=interval).mean()
+        negativos=negativos.ewm(alpha=1/interval,min_periods=interval).mean()
+
+        rsi=100 * positivos * 1 / (negativos+positivos)
         import pdb; pdb.set_trace()
         return rsi
-
-
 
 
 hoy=date.today()
@@ -60,13 +59,13 @@ print(now)
 ggal=yf.Ticker("GGAL.BA")
 ggal_hist=ggal.history(period="1y",interval="1d")
 ggal_analisis=Analisis(ggal_hist)
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 
 
-ggal_analisis.get_rsi()
+s=ggal_analisis.get_rsi()
 #import pdb; pdb.set_trace()
 #t=ggal_hist['Date']
-s=get_sma(ggal_hist['Close'],21)
+#s=get_sma(ggal_hist['Close'],21)
 plt.plot(s)
 plt.show()
 
