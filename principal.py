@@ -5,6 +5,7 @@ import pandas as pd
 import pandas_ta as ta
 import matplotlib.pyplot as plt
 from copy import deepcopy as copy
+import numpy as np
 
 
 class Analisis:
@@ -19,13 +20,26 @@ class Analisis:
         #df=pandas.DataFrame()
         sma=self.close.rolling(period).mean()
         return sma
+
     def get_wma(self,period):
         """
         Calcula la media ponderada en el tiempo
+        Fuente:
+            https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/overlap/wma.py
+            https://en.wikipedia.org/wiki/Moving_average#Weighted_moving_average
         """
-        wma=self.close.ewm(alpha=1/period,min_periods=period).mean()
-        return wma
+        length=period
+        total_weight = 0.5 * length * (length + 1)
+        weights = pd.Series(np.arange(1, length + 1))
+        # aberracion que hace pandas_ta
+        def linear(w):
+            def _compute(x):
+                return np.dot(x, w) / total_weight
+            return _compute
 
+        close_ = self.close.rolling(length, min_periods=length)
+        wma = close_.apply(linear(weights), raw=True)
+        return wma
 
     def get_rsi(self):
         """
@@ -47,8 +61,8 @@ class Analisis:
         negativos.loc[diferencia>0]=0
         negativos=abs(negativos)
 
-        positivos=positivos.ewm(alpha=1/interval,min_periods=interval).mean()
-        negativos=negativos.ewm(alpha=1/interval,min_periods=interval).mean()
+        positivos=positivos.ewm(alpha=1/interval,min_periods=interval).mean()#rma
+        negativos=negativos.ewm(alpha=1/interval,min_periods=interval).mean()#rma
 
         rsi=100 * positivos * 1 / (negativos+positivos)
         return rsi
