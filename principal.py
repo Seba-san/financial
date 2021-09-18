@@ -12,6 +12,27 @@ class Analisis:
     def __init__(self,df):
         self.data=df
         self.close=df['Close']
+        self.cross()
+
+
+    def cross(self):
+        
+        # Determina el cruce dorado
+        m_=self.get_sma(50)
+        l_=self.get_sma(200)
+        l=l_[-1]
+        m=m_[-1]
+        if l<m:
+            self.golden_cross= True
+            if (m/l-1)*100>10:
+                self.tendencia_ascendente= True
+                self.tendencia_descendente= False
+        else:
+            self.golden_cross= False
+            if -(m/l-1)*100>10:
+                self.tendencia_ascendente= False
+                self.tendencia_descendente= True
+
 
     def get_sma(self,period):
         """
@@ -78,7 +99,7 @@ print(now)
 ggal=yf.Ticker("GGAL.BA")
 ggal_hist=ggal.history(period="1y",interval="1d")
 ggal_analisis=Analisis(ggal_hist)
-#import pdb; pdb.set_trace()
+import pdb; pdb.set_trace()
 
 
 s=ggal_analisis.get_rsi()
@@ -88,7 +109,7 @@ l=ggal_analisis.get_sma(200)
 #import pdb; pdb.set_trace()
 #t=ggal_hist['Date']
 #s=get_sma(ggal_hist['Close'],21)
-"""
+#"""
 plt.plot(c,label='corta')
 plt.plot(m,label='media')
 plt.plot(l,label='larga')
