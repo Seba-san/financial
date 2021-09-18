@@ -9,7 +9,6 @@ from copy import deepcopy as copy
 
 class Analisis:
     def __init__(self,df):
-        #df=pandas.DataFrame()
         self.data=df
         self.close=df['Close']
 
@@ -19,7 +18,14 @@ class Analisis:
         """
         #df=pandas.DataFrame()
         sma=self.close.rolling(period).mean()
-        return sma 
+        return sma
+    def get_wma(self,period):
+        """
+        Calcula la media ponderada en el tiempo
+        """
+        wma=self.close.ewm(alpha=1/period,min_periods=period).mean()
+        return wma
+
 
     def get_rsi(self):
         """
@@ -45,7 +51,6 @@ class Analisis:
         negativos=negativos.ewm(alpha=1/interval,min_periods=interval).mean()
 
         rsi=100 * positivos * 1 / (negativos+positivos)
-        import pdb; pdb.set_trace()
         return rsi
 
 
@@ -63,14 +68,22 @@ ggal_analisis=Analisis(ggal_hist)
 
 
 s=ggal_analisis.get_rsi()
+c=ggal_analisis.get_wma(21)
+m=ggal_analisis.get_sma(50)
+l=ggal_analisis.get_sma(200)
 #import pdb; pdb.set_trace()
 #t=ggal_hist['Date']
 #s=get_sma(ggal_hist['Close'],21)
-plt.plot(s)
+"""
+plt.plot(c,label='corta')
+plt.plot(m,label='media')
+plt.plot(l,label='larga')
+plt.legend()
+plt.yscale("log")
 plt.show()
+"""
 
-
-#import pdb; pdb.set_trace()
+import pdb; pdb.set_trace()
 #print(df)
 
 
@@ -78,7 +91,7 @@ plt.show()
 # Add volume.
 # Add moving averages: 3,6,9.
 # Save graph to *.png.
-#"""
+"""
 mpf.plot(ggal_hist, type='candle', style='charles',
         title='',
         ylabel='',
