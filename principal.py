@@ -6,16 +6,7 @@ import pandas_ta as ta
 import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 import numpy as np
-
-
-
-class Analisis:
-    def __init__(self):
-        self.confiable=False
-        self.bull=False
-        self.bear=False
-        self.msg=''
-
+#from sklearn.linear_model import LinearRegression # Ver
 
 class Indicadores:
     """
@@ -23,49 +14,18 @@ class Indicadores:
     valor es confiable o no.
     """
     def __init__(self,df):
-        self.analisis=Analisis()
         self.data=df
         self.close=df['Close']
-        self.tendencias()
-        
-
-
-    def tendencias(self):
-        """
-        Calcula el cruce dorado e identifica la tendencia. Hay que hacer las
-        cuentas para detectar correctamente la tendencia. Segun:
-        https://www.investopedia.com/terms/b/bullmarket.asp 
-        para que un mercado sea alcista tiene que subir un 20% desde la ultima
-        vez que bajo. 
-        Por ahi para detectarlo hay que comprar el cruce dorado y la wma(21),
-        su supera cierto valor, entonces es alcista.
-        """
-        
-        # Determina el cruce dorado
-        m_=self.get_sma(50)
-        l_=self.get_sma(200)
-        l=l_[-1]
-        m=m_[-1]
-        self.tendencia_ascendente= False
-        self.tendencia_descendente= False
-        if l<m:
-            self.golden_cross= True
-            if (m/l-1)*100>10:
-                self.tendencia_ascendente= True
-                self.tendencia_descendente= False
-        else:
-            self.golden_cross= False
-            if -(m/l-1)*100>10:
-                self.tendencia_ascendente= False
-                self.tendencia_descendente= True
-
-
-    def get_sma(self,period):
+    
+    def get_sma(self,period,signal=False):
         """
         Calcula la media movil de un periodo determinado
         """
         #df=pandas.DataFrame()
-        sma=self.close.rolling(period).mean()
+        if type(signal)==bool:
+            signal=self.close
+
+        sma=signal.rolling(period).mean()
         return sma
 
     def get_wma(self,period,signal=False):
@@ -99,7 +59,6 @@ class Indicadores:
             signal=self.close
 
         ema = signal.ewm(span=interval, adjust=False).mean()
-            
         return ema
 
     def get_rma(self,interval,signal=False):
@@ -157,28 +116,58 @@ class Indicadores:
         ema_26=self.get_ema(26)
         macd=ema_12-ema_26
         signal=self.get_ema(9,signal=macd)
-        if self.tendencia_ascendente or self.tendencia_descendente:
-            self.analisis.confiable=True
-        else:
-            self.analisis.confiable=False
-            self.analisis.msg='valor no confiable por no tener una tendencia\
-                          definida'
-
-        if self.tendencia_ascendente:
-            if macd[-1]>signal[-1]:
-                self.analisis.bull=True
-                self.analisis.bear=False
-                self.analisis.msg='mercado en alza, oportunidad de compra'
-            else:
-                self.analisis.msg='mercado en alza, oportunidad de venta'
-
-        if self.tendencia_descendente:
-            if macd[-1]<signal[-1]:
-               self.analisis.bear=True
-               self.analisis.bull=False
-               self.analisis.msg='mercado en caida, no entrar'
-
         return macd,signal
+
+    def get_adx(self):
+        """
+        Fuente:
+        https://www.investopedia.com/terms/a/adx.asp
+        https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/trend/adx.py
+        https://en.wikipedia.org/wiki/Average_directional_movement_index
+        """
+        period=14
+        high=self.data['High']
+        pdm=high.diff()
+        low=self.data['Low']
+        mdm=-low.diff()
+        mdm_=((mdm>pdm) & (mdm>0))*copy(mdm)
+        pdm_=((pdm>mdm) & (pdm>0))*copy(pdm)
+        
+        # Calculo de ATR
+        close=self.data['Close']
+        close=close.shift(periods=1)
+        tr=pd.DataFrame()
+        tr['today']=high-low
+        tr['high_close']=abs(high-close)
+        tr['low_close']=abs(low-close)
+        tr=tr.max(axis=1)
+        atr=self.get_rma(period,signal=tr)
+
+
+        #pdm.loc[pdm<0]=0
+        #pdm.loc[mdm>pdm]=0
+        #mdm.loc[mdm<0]=0
+        #mdm.loc[pdm>mdm]=0
+        
+        k=100*1/atr
+        pdi=k*self.get_rma(period,signal=pdm_)
+        mdi=k*self.get_rma(period,signal=mdm_)
+
+        adx=100 * abs(pdi-mdi)/(pdi+mdi)
+        adx=self.get_sma(period,signal=adx)
+        return adx,pdi,mdi
+        
+
+
+class Tendencia:
+    def __init__(self,df):
+        self.df=copy(df)
+        self.tendencia=copy(df['Close'])
+        self.indicadores=Indicadores(self.df)
+        
+        macd,signal=self.indicadores.get_macd()
+        self.tendencia.loc[macd<0]=-1
+        self.tendencia.loc[macd>0]=1
 
 
 hoy=date.today()
@@ -188,9 +177,22 @@ print(now)
 # Fuente: https://www.it-swarm-es.com/es/python/como-puedo-personalizar-mplfinance.plot/815815720/
 # Load data file.
 #df = pd.read_csv('CSV.csv', index_col=0, parse_dates=True)
-ggal=yf.Ticker("GGAL.BA")
-ggal_hist=ggal.history(period="1y",interval="1d")
-ggal_analisis=Indicadores(ggal_hist)
+#ggal=yf.Ticker("GGAL.BA")
+#ggal_hist=ggal.history(period="1y",interval="1d")
+#ggal_hist.to_csv('ggal.csv')
+ggal_hist=pd.read_csv('ggal.csv')
+import pdb; pdb.set_trace()
+test=Tendencia(ggal_hist)
+ggal_ind=Indicadores(ggal_hist)
+adx,pdi,mdi=ggal_ind.get_adx()
+
+plt.plot(pdi,label='pdi')
+plt.plot(mdi,label='mdi')
+plt.plot(ggal_hist['Close'],label='activo')
+plt.plot(test.tendencia,label='tendencia')
+plt.legend()
+plt.show()
+
 import pdb; pdb.set_trace()
 macd,signal=ggal_analisis.get_macd()
 
