@@ -203,6 +203,11 @@ https://en.wikipedia.org/wiki/Money_flow_index
         Fuente:
         https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/trend/psar.py
         https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=66&Name=Parabolic
+
+        Devuelve:
+            .- Sar
+            .- Tendencia: 0 bajista, 1 alcista
+
         """
 
         a=0.02
@@ -214,7 +219,8 @@ https://en.wikipedia.org/wiki/Money_flow_index
         Ep_2=data['Low'].iloc[0]
         sar=[]
         sar.append(Ep_1)
-        tendence=0
+        tendence=[]
+        tendence.append(0)
         mi=data['Close'].iloc[0]
         ma=copy(mi)
 
@@ -228,7 +234,7 @@ https://en.wikipedia.org/wiki/Money_flow_index
             if low<mi:
                 mi=low
 
-            if tendence>0:
+            if tendence[-1]>0:
                 #Uptrend
                 Ep_1=ma
                 if low<sar[-1]:
@@ -238,7 +244,9 @@ https://en.wikipedia.org/wiki/Money_flow_index
                     sar[-1]=ma
                     ma=close
                     mi=close
-                    tendence=0
+                    tendence.append(0)
+                else:
+                    tendence.append(tendence[-1])
             else:
                 #Downtrend
                 Ep_1=mi
@@ -249,7 +257,9 @@ https://en.wikipedia.org/wiki/Money_flow_index
                     sar[-1]=mi
                     ma=close
                     mi=close
-                    tendence=1
+                    tendence.append(1)
+                else:
+                    tendence.append(tendence[-1])
             
             sar.append( sar[-1]+a_t*(Ep_1-sar[-1]))
             
@@ -259,7 +269,7 @@ https://en.wikipedia.org/wiki/Money_flow_index
             if Ep_1!=Ep_2:
                 Ep_2=Ep_1
 
-        return sar
+        return sar, tendence
 
 class Tendencia:
     def __init__(self,df):
@@ -270,6 +280,65 @@ class Tendencia:
         macd,signal=self.indicadores.get_macd()
         self.tendencia.loc[macd<0]=-1
         self.tendencia.loc[macd>0]=1
+
+        #import pdb; pdb.set_trace()
+        # Valor confiable cuando adx>25
+        adx,pdi,mdi=self.indicadores.get_adx()
+        adx.loc[adx<25]=0
+        pos=((adx>25) & (pdi>mdi))*(adx -25)*3/75
+        neg=((adx>25) & (mdi>pdi))*(-adx +25)*3/75
+        self.tendencia=self.tendencia +neg+pos
+
+        pos=(pdi>mdi)*1
+        neg=(pdi<mdi)*(-1)
+        self.tendencia=self.tendencia +neg+pos
+
+        sar,tendence=self.indicadores.get_parabolic_sar()
+        tendence=pd.Series(data=tendence,dtype=float)
+        pos=(tendence>0.5)*1
+        neg=(tendence<0.5)*(-1)
+        self.tendencia=self.tendencia +neg+pos
+
+        m=self.indicadores.get_sma(50)
+        l=self.indicadores.get_sma(200)
+        pos=(m>l)*1
+        neg=(m<l)*(-1)
+        self.tendencia=self.tendencia +neg+pos
+
+
+class Estrategia:
+    def __init__(self,df):
+        self.df=copy(df)
+        self.indicadores=Indicadores(self.df)
+
+        self.tendencia=Tendencia(self.df)
+
+        _,tendencia_=self.indicadores.get_parabolic_sar()
+        tendencia=pd.Series(data=tendencia_,dtype=float)
+        self.a=self.test(tendencia)
+
+    def test(self,indicador):
+        difference=indicador.diff()
+        a=[]
+        a.append(0)
+        tenencia=0
+        for i in range(len(difference)):
+            if difference.iloc[i]>0 and self.tendencia.tendencia.iloc[i]>1 and tenencia==0:
+            #if difference.iloc[i]>0 and tenencia==0:
+                a.append(a[-1]-self.df['Close'].iloc[i])
+                tenencia=1
+            elif difference.iloc[i]<0 and tenencia==1: 
+            #elif difference.iloc[i]<0 and tenencia==1:
+                a.append(a[-1]+self.df['Close'].iloc[i])
+                tenencia=0
+            else:
+                a.append(a[-1])
+
+        return a
+
+
+
+        
 
 
 hoy=date.today()
@@ -289,7 +358,11 @@ import pdb; pdb.set_trace()
 ggal_hist=pd.read_csv('aapl.csv')
 test=Tendencia(ggal_hist)
 ggal_ind=Indicadores(ggal_hist)
-#adx,pdi,mdi=ggal_ind.get_adx()
+adx,pdi,mdi=ggal_ind.get_adx()
+
+est=Estrategia(ggal_hist)
+
+"""
 import pdb; pdb.set_trace()
 sar=ggal_ind.get_parabolic_sar()
 c=ggal_hist['Close']
@@ -304,10 +377,27 @@ plt.show()
 import pdb; pdb.set_trace()
 plt.plot(pdi,label='pdi')
 plt.plot(mdi,label='mdi')
-plt.plot(ggal_hist['Close'],label='activo')
+#"""
+plot1=plt.figure(1)
+plt.plot(ggal_hist['Close'].loc[test.tendencia>1],'.g')
+plt.plot(ggal_hist['Close'].loc[test.tendencia<-1],'.r')
+plt.plot(ggal_hist['Close'],'-y',label='activo')
+
+#plt.plot(adx,label='adx')
+plot2=plt.figure(2)
 plt.plot(test.tendencia,label='tendencia')
+
+plot3=plt.figure(3)
+plt.plot(est.a,label='ganancias')
+
+
+print(est.a[-1])
+print("Precio final {} dolares".format(ggal_hist['Close'].iloc[-1]))
+
 plt.legend()
 plt.show()
+
+
 
 import pdb; pdb.set_trace()
 macd,signal=ggal_analisis.get_macd()
