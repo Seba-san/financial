@@ -172,6 +172,34 @@ class Indicadores:
         
         return adx,pdi,mdi
 
+    def get_mfi(self):
+        """
+        Fuentes:
+        https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/volume/mfi.py
+        https://www.investopedia.com/terms/m/mfi.asp
+https://en.wikipedia.org/wiki/Money_flow_index
+        """
+        period=14 #days
+        typical_price=(self.data['High']+self.data['Low']+self.data['Close'])/3
+        money_flow=typical_price*self.data['Volume']
+        diff_tp=typical_price.diff()
+        
+        positive_money_flow=copy(money_flow)
+        positive_money_flow.loc[diff_tp<0]=0
+        positive_money_flow.loc[diff_tp==0]=0
+        negative_money_flow=copy(money_flow)
+        negative_money_flow.loc[diff_tp>0]=0
+        negative_money_flow.loc[diff_tp==0]=0
+        
+        pmf_sum=positive_money_flow.rolling(period).sum()
+        nmf_sum=negative_money_flow.rolling(period).sum()
+        
+        money_ratio=pmf_sum/nmf_sum 
+        mfi=100*pmf_sum / (pmf_sum+nmf_sum)
+        return mfi
+
+
+
 class Tendencia:
     def __init__(self,df):
         self.df=copy(df)
@@ -200,10 +228,10 @@ import pdb; pdb.set_trace()
 ggal_hist=pd.read_csv('aapl.csv')
 test=Tendencia(ggal_hist)
 ggal_ind=Indicadores(ggal_hist)
-adx,pdi,mdi=ggal_ind.get_adx()
-print(adx)
-print(pdi)
-print(mdi)
+#adx,pdi,mdi=ggal_ind.get_adx()
+import pdb; pdb.set_trace()
+mfi=ggal_ind.get_mfi()
+print(mfi)
 import pdb; pdb.set_trace()
 plt.plot(pdi,label='pdi')
 plt.plot(mdi,label='mdi')
