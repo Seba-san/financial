@@ -198,7 +198,68 @@ https://en.wikipedia.org/wiki/Money_flow_index
         mfi=100*pmf_sum / (pmf_sum+nmf_sum)
         return mfi
 
+    def get_parabolic_sar(self):
+        """
+        Fuente:
+        https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/trend/psar.py
+        https://www.sierrachart.com/index.php?page=doc/StudiesReference.php&ID=66&Name=Parabolic
+        """
 
+        a=0.02
+        a_t=a
+        da=0.02
+        a_ma=0.2
+        data=self.data
+        Ep_1=data['High'].iloc[0]
+        Ep_2=data['Low'].iloc[0]
+        sar=[]
+        sar.append(Ep_1)
+        tendence=0
+        mi=data['Close'].iloc[0]
+        ma=copy(mi)
+
+        for i in range(len(data)-1):
+            high=copy(data['High'].iloc[i])
+            low=copy(data['Low'].iloc[i])
+            close=copy(data['Close'].iloc[i])
+            if high>ma:
+                ma=high
+
+            if low<mi:
+                mi=low
+
+            if tendence>0:
+                #Uptrend
+                Ep_1=ma
+                if low<sar[-1]:
+                    #change
+                    a_t=a
+                    Ep_1=low
+                    sar[-1]=ma
+                    ma=close
+                    mi=close
+                    tendence=0
+            else:
+                #Downtrend
+                Ep_1=mi
+                if high>sar[-1]:
+                    #change
+                    a_t=a
+                    Ep_1=high
+                    sar[-1]=mi
+                    ma=close
+                    mi=close
+                    tendence=1
+            
+            sar.append( sar[-1]+a_t*(Ep_1-sar[-1]))
+            
+            if Ep_1!=Ep_2 and a_t<a_ma:
+                a_t=a_t+da
+
+            if Ep_1!=Ep_2:
+                Ep_2=Ep_1
+
+        return sar
 
 class Tendencia:
     def __init__(self,df):
@@ -230,8 +291,16 @@ test=Tendencia(ggal_hist)
 ggal_ind=Indicadores(ggal_hist)
 #adx,pdi,mdi=ggal_ind.get_adx()
 import pdb; pdb.set_trace()
-mfi=ggal_ind.get_mfi()
-print(mfi)
+sar=ggal_ind.get_parabolic_sar()
+c=ggal_hist['Close']
+h=ggal_hist['High']
+l=ggal_hist['Low']
+print(sar)
+plt.plot(sar,'bo',label='sar')
+plt.plot(h,'go',label='high')
+plt.plot(l,'ro',label='low')
+plt.legend()
+plt.show()
 import pdb; pdb.set_trace()
 plt.plot(pdi,label='pdi')
 plt.plot(mdi,label='mdi')
