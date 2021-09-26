@@ -124,14 +124,27 @@ class Indicadores:
         https://www.investopedia.com/terms/a/adx.asp
         https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/trend/adx.py
         https://en.wikipedia.org/wiki/Average_directional_movement_index
+
+        El codigo puede variar. En lugar de usar la "rma" se puede usar la
+        "sma". 
         """
+        #import pdb; pdb.set_trace()
         period=14
         high=self.data['High']
         pdm=high.diff()
         low=self.data['Low']
         mdm=-low.diff()
-        mdm_=((mdm>pdm) & (mdm>0))*copy(mdm)
-        pdm_=((pdm>mdm) & (pdm>0))*copy(pdm)
+
+        mdm_=copy(mdm)
+        pdm_=copy(pdm)
+
+        pdm_.loc[pdm<0]=0
+        pdm_.loc[mdm>pdm]=0
+        mdm_.loc[mdm<0]=0
+        mdm_.loc[pdm>mdm]=0
+
+        #mdm_=((mdm>pdm) & (mdm>0))*copy(mdm)
+        #pdm_=((pdm>mdm) & (pdm>0))*copy(pdm)
         
         # Calculo de ATR
         close=self.data['Close']
@@ -142,6 +155,7 @@ class Indicadores:
         tr['low_close']=abs(low-close)
         tr=tr.max(axis=1)
         atr=self.get_rma(period,signal=tr)
+        #atr=self.get_sma(period,signal=tr)
 
 
         #pdm.loc[pdm<0]=0
@@ -154,10 +168,9 @@ class Indicadores:
         mdi=k*self.get_rma(period,signal=mdm_)
 
         adx=100 * abs(pdi-mdi)/(pdi+mdi)
-        adx=self.get_sma(period,signal=adx)
-        return adx,pdi,mdi
+        adx=self.get_rma(period,signal=adx)
         
-
+        return adx,pdi,mdi
 
 class Tendencia:
     def __init__(self,df):
@@ -177,15 +190,21 @@ print(now)
 # Fuente: https://www.it-swarm-es.com/es/python/como-puedo-personalizar-mplfinance.plot/815815720/
 # Load data file.
 #df = pd.read_csv('CSV.csv', index_col=0, parse_dates=True)
+"""
 #ggal=yf.Ticker("GGAL.BA")
-#ggal_hist=ggal.history(period="1y",interval="1d")
-#ggal_hist.to_csv('ggal.csv')
-ggal_hist=pd.read_csv('ggal.csv')
+ggal=yf.Ticker("AAPL")
+ggal_hist=ggal.history(period="1y",interval="1d")
+ggal_hist.to_csv('aapl.csv')
 import pdb; pdb.set_trace()
+#"""
+ggal_hist=pd.read_csv('aapl.csv')
 test=Tendencia(ggal_hist)
 ggal_ind=Indicadores(ggal_hist)
 adx,pdi,mdi=ggal_ind.get_adx()
-
+print(adx)
+print(pdi)
+print(mdi)
+import pdb; pdb.set_trace()
 plt.plot(pdi,label='pdi')
 plt.plot(mdi,label='mdi')
 plt.plot(ggal_hist['Close'],label='activo')
