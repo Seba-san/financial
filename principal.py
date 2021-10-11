@@ -74,6 +74,9 @@ class Indicadores:
     def get_rsi(self):
         """
         Calcula el rsi de 14 días del dataframe df
+        Estrategia estandard:
+            .- Por debajo de 30 es sobrevendido
+            .- Por arriba de 70 es sobrecomprado
         Fuentes:
             https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/overlap/rma.py
             https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/momentum/rsi.py
@@ -103,6 +106,10 @@ class Indicadores:
     def get_macd(self):
         """
         Moving Average Convergence Divergence (MACD)
+        Estrategia estandard:
+            .- Cuando signal esta por sobre del macd es tendencia alcista, por
+            lo tanto en el cruce es senial de compra. Cuando la signal esta por
+            debajo del macd, es bajista, por lo tanto es venta.
         Fuente:
         https://www.investopedia.com/terms/m/macd.asp
         https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/momentum/macd.py
@@ -197,6 +204,31 @@ https://en.wikipedia.org/wiki/Money_flow_index
         money_ratio=pmf_sum/nmf_sum 
         mfi=100*pmf_sum / (pmf_sum+nmf_sum)
         return mfi
+
+    def get_cmf(self):
+        """
+        calcula Chaikin Money Flow
+
+        .- Cuidado: no esta verificado.
+
+        Estrategia:
+            .- Cuando es >0 quiere decir que se esta acumulando dinero, cuando
+            es <0 quiere decir que esta saliendo dinero (en promedio)
+            .- Se suelen usar margenes de +-0.05 cuando se esta cerca del 0, ya
+            que hay cierta incertidumbre.
+        Fuentes:
+            .- https://github.com/twopirllc/pandas-ta/blob/main/pandas_ta/volume/cmf.py
+            .- https://www.tradingview.com/support/solutions/43000501974-chaikin-money-flow-cmf/
+            .- https://school.stockcharts.com/doku.php?id=technical_indicators:chaikin_money_flow_cmf
+        Interpretacion:
+            .- Si el precio close esta cerca de high, quiere decir que en el
+            dia ingreso mas dinero que el que se fue, si el close esta mas
+            cerca del low, se fue mas dinero que el que ingreso. 
+        """
+        multiplicador=(self.data['Close']-self.data['Low'])-(self.data['High']-self.data['Close'])/(self.data['High']-self.data['Low'])
+        mfv=multiplicador*self.data['Volume']
+        cmf=self.get_wma(21,mfv)/self.get_wma(21,self.data['Volume'])
+        return cmf
 
     def get_parabolic_sar(self):
         """
@@ -307,15 +339,32 @@ class Tendencia:
 
 
 class Estrategia:
+    """
+    La idea de esta clase es que compare estrategias entre el maximo teorico y
+    el minimo de hacer hold.
+
+    Cosas a agregar:
+        .- Cada estrategia va a depender de cada activo, hay que ajustarlo para
+        cada uno.
+    """
     def __init__(self,df):
         self.df=copy(df)
         self.indicadores=Indicadores(self.df)
+        ma,hold=self.max_teorico()
 
         self.tendencia=Tendencia(self.df)
 
         _,tendencia_=self.indicadores.get_parabolic_sar()
+        
+        #macd,signal=self.indicadores.get_macd()
+        #tendencia_=(macd>signal)*1 # Esto es para pasarlo a numeros.
+
+        
+
+        import pdb; pdb.set_trace()
         tendencia=pd.Series(data=tendencia_,dtype=float)
-        self.a=self.test(tendencia)
+        a,status=self.test(tendencia)
+        import pdb; pdb.set_trace()
 
     def test(self,indicador):
         difference=indicador.diff()
@@ -323,23 +372,36 @@ class Estrategia:
         a.append(0)
         tenencia=0
         for i in range(len(difference)):
-            if difference.iloc[i]>0 and self.tendencia.tendencia.iloc[i]>1 and tenencia==0:
-            #if difference.iloc[i]>0 and tenencia==0:
+            #if difference.iloc[i]>0 and self.tendencia.tendencia.iloc[i]>1 and tenencia==0:
+            if difference.iloc[i]>0 and tenencia==0:
                 a.append(a[-1]-self.df['Close'].iloc[i])
                 tenencia=1
-            elif difference.iloc[i]<0 and tenencia==1: 
-            #elif difference.iloc[i]<0 and tenencia==1:
+            #elif difference.iloc[i]<0 and tenencia==1: 
+            elif difference.iloc[i]<0 and tenencia==1:
                 a.append(a[-1]+self.df['Close'].iloc[i])
                 tenencia=0
             else:
                 a.append(a[-1])
 
-        return a
+        if tenencia==1:
+            status=a[-1]+self.df['Close'].iloc[i]
+        else:
+            status=a[-1]
 
+        return a,status
 
-
-        
-
+    def max_teorico(self):
+        """
+        Este metodo calcula el maximo teorico y devuelve el valor base si solo
+        se ubiera hecho hold.
+        """
+        data=self.indicadores.close
+        diferencia=data.diff()
+        positivos=copy(diferencia)
+        positivos.loc[diferencia<0]=0
+        ma=positivos.sum()
+        hold=self.indicadores.close.iloc[-1]-self.indicadores.close.iloc[0]
+        return ma,hold
 
 hoy=date.today()
 #now=hoy.strftime("%d/%m/%Y")
@@ -348,13 +410,13 @@ print(now)
 # Fuente: https://www.it-swarm-es.com/es/python/como-puedo-personalizar-mplfinance.plot/815815720/
 # Load data file.
 #df = pd.read_csv('CSV.csv', index_col=0, parse_dates=True)
-"""
+""
 #ggal=yf.Ticker("GGAL.BA")
 ggal=yf.Ticker("AAPL")
 ggal_hist=ggal.history(period="1y",interval="1d")
 ggal_hist.to_csv('aapl.csv')
 import pdb; pdb.set_trace()
-#"""
+#""
 ggal_hist=pd.read_csv('aapl.csv')
 test=Tendencia(ggal_hist)
 ggal_ind=Indicadores(ggal_hist)
@@ -362,16 +424,17 @@ adx,pdi,mdi=ggal_ind.get_adx()
 
 est=Estrategia(ggal_hist)
 
-"""
+#"""
+ggal_ind=Indicadores(ggal_hist)
 import pdb; pdb.set_trace()
 sar=ggal_ind.get_parabolic_sar()
 c=ggal_hist['Close']
 h=ggal_hist['High']
 l=ggal_hist['Low']
-print(sar)
+#print(sar)
 plt.plot(sar,'bo',label='sar')
-plt.plot(h,'go',label='high')
-plt.plot(l,'ro',label='low')
+plt.plot(c,'g-',label='high')
+#plt.plot(l,'ro',label='low')
 plt.legend()
 plt.show()
 import pdb; pdb.set_trace()
